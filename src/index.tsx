@@ -100,16 +100,19 @@ export class ImageCache {
         if (!cache.downloading) {
             const path = this.getPath(uri, cache.immutable);
             cache.downloading = true;
+            this.notify(uri);
             const method = source.method ? source.method : "GET";
-            cache.task = RNFetchBlob.config({ path }).fetch(method, uri, source.headers);
+            cache.task = RNFetchBlob.config({ path, timeout: 8000, trusty: true }).fetch(method, uri, source.headers);
             cache.task.then(() => {
                 cache.downloading = false;
                 cache.path = path;
                 this.notify(uri);
-            }).catch(() => {
+            }).catch((err) => {
                 cache.downloading = false;
+                cache.path = null;
                 // Parts of the image may have been downloaded already, (see https://github.com/wkh237/react-native-fetch-blob/issues/331)
                 RNFetchBlob.fs.unlink(path);
+                this.notify(uri);
             });
         }
     }
@@ -175,12 +178,13 @@ export abstract class BaseCachedImage<P extends CachedImageProps> extends Compon
     }
 
     protected getProps() {
-        const props: any = {};
+        const props = {};
         Object.keys(this.props).forEach(prop => {
-            if (prop === "source" && (this.props as any).source.uri) {
-                props["source"] = this.state.path ? {uri: FILE_PREFIX + this.state.path} : {};
-            } else if (["mutable", "component"].indexOf(prop) === -1) {
-                props[prop] = (this.props as any)[prop];
+            if (prop === "source" && this.props.source.uri) {
+                props["source"] = this.state.path ? { uri: FILE_PREFIX + this.state.path } : this.props.errorSource;
+            }
+            else if (["mutable", "component"].indexOf(prop) === -1) {
+                props[prop] = this.props[prop];
             }
         });
         return props;
